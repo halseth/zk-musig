@@ -1,0 +1,12 @@
+[package]
+name = "guest_code_for_zk_proof"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+risc0-zkvm = { version = "^3.0.1", default-features = false, features = ['std'] }
+secp256k1 = { version = "0.30.0", features = [] }
+musig2 = { git = "https://github.com/halseth/musig2.git", rev = "47fe67f", features = []}
+hex = "0.4.3"
