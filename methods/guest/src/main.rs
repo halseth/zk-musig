@@ -43,7 +43,6 @@ fn main() {
         PubNonce::from_hex(p).unwrap()
     }).collect();
 
-    let (pubkeys, public_nonces, key_agg_ctx, aggregated_nonce) = aggregate_pubs(pubkeys, public_nonces, None);
     let (
         pubkeys,
         public_nonces,
@@ -89,35 +88,25 @@ fn main() {
 
 
 //    for (i, pubkey) in pubkeys.iter().enumerate() {
-        let their_pubkey: PublicKey = key_agg_ctx.get_pubkey(i).unwrap();
-        let key_coeff = key_agg_ctx.key_coefficient(their_pubkey).unwrap();
+    let their_pubkey: PublicKey = key_agg_ctx.get_pubkey(i).unwrap();
+    let pub_nonce: PubNonce = public_nonces[i].clone();
+    let key_coeff = key_agg_ctx.key_coefficient(their_pubkey).unwrap();
 
-        let even_parity = bool::from(!challenge_parity);
-        let ep = if sign_nonce.has_even_y() ^ even_parity {
-            key_coeff * e - blinding_factors[i].beta
-        } else {
-            key_coeff * e + blinding_factors[i].beta
-        };
+    let even_parity = bool::from(!challenge_parity);
+    let ep = if sign_nonce.has_even_y() ^ even_parity {
+        key_coeff * e - blinding_factors[i].beta
+    } else {
+        key_coeff * e + blinding_factors[i].beta
+    };
 
-        let bp = b + blinding_factors[i].gamma;
+    let bp = b + blinding_factors[i].gamma;
 
-        //let body = SignReq {
-        //    session_id: id.clone(),
-        //    challenge_parity: challenge_parity.unwrap_u8(),
-        //    nonce_parity: nonce_parity.unwrap_u8(),
-        //    b: bp.encode_hex(),
-        //    e: hex::encode(ep),
-        //};
     env::commit(&their_pubkey.to_string());
+    env::commit(&pub_nonce.to_string());
     env::commit(&challenge_parity.unwrap_u8());
     env::commit(&nonce_parity.unwrap_u8());
     env::commit(&hex::encode(bp));
     env::commit(&hex::encode(ep));
- //   }
-
-
-    // write public output to the journal
-    //env::commit(&coeff_salt);
 }
 
 fn aggregate_pubs(
