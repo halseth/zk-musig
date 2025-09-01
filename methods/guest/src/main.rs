@@ -26,7 +26,6 @@ fn main() {
     let pn: Vec<String>= env::read();
     let message: String = env::read();
 
-
     let blinding_factors: Vec<BlindingFactors> = bf.iter().map(|(a,b,g)| {
         BlindingFactors {
             alpha: Scalar::from_str(a).unwrap(),
