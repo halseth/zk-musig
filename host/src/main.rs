@@ -9,7 +9,7 @@ use musig2::{
     compute_challenge_hash_tweak, verify_partial_challenge, AggNonce, KeyAggContext,
     PartialSignature, PubNonce, SecNonce,
 };
-use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
+use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, Receipt};
 use k256::PublicKey;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -20,6 +20,9 @@ use musig2::secp::Scalar;
 struct Args {
     #[arg(long)]
     prove: Option<String>,
+
+    #[arg(long)]
+    proof_type: Option<String>,
 
     #[arg(long)]
     verify: Option<bool>,
@@ -107,12 +110,45 @@ fn main() {
         .build()
         .unwrap();
 
+    let proof_type: ProverOpts = match args.proof_type.as_deref() {
+        None => {
+            println!("using default proof type");
+            ProverOpts::default()
+        }
+        Some("default") => {
+            println!("using default proof type");
+            ProverOpts::default()
+        }
+        Some("fast") => {
+            println!("using fast proof type");
+            ProverOpts::fast()
+        }
+        Some("succint") => {
+            println!("using succint proof type");
+            ProverOpts::succinct()
+        }
+        Some("groth16") => {
+            println!("using groth16 proof type");
+            ProverOpts::groth16()
+        }
+        Some("composite") => {
+            println!("using composite proof type");
+            ProverOpts::composite()
+        }
+        _ => {
+            println!("proof type invalid");
+            return;
+        }
+    };
+
     // Obtain the default prover.
     let prover = default_prover();
 
     // Proof information by proving the specified ELF binary.
     // This struct contains the receipt along with statistics about execution of the guest
-    let prove_info = prover.prove(env, GUEST_CODE_FOR_ZK_PROOF_ELF).unwrap();
+    let prove_info = prover
+        .prove_with_opts(env, GUEST_CODE_FOR_ZK_PROOF_ELF, &proof_type)
+        .unwrap();
 
     // extract the receipt.
     let receipt = prove_info.receipt;
