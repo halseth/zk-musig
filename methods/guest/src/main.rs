@@ -1,8 +1,7 @@
 use risc0_zkvm::guest::env;
-use secp256k1::{PublicKey};
+use k256::PublicKey;
 use musig2::{
-    AggNonce, KeyAggContext, PartialSignature, PubNonce, SecNonce, compute_challenge_hash_tweak,
-    verify_partial_challenge,
+    AggNonce, KeyAggContext, PubNonce, compute_challenge_hash_tweak,
 };
 use musig2::secp::{G, MaybePoint, MaybeScalar, Point, Scalar};
 use std::str::FromStr;
@@ -14,28 +13,23 @@ struct BlindingFactors {
     gamma: Scalar,
 }
 
-
 fn main() {
     // TODO: Implement your guest code here
 
     // read the input
     let i: usize = env::read();
     let coeff_salt: [u8; 32] = env::read();
-    let bf: Vec<(String,String,String)> = env::read();
-    let pk: Vec<String>= env::read();
+    let pubkeys: Vec<PublicKey>= env::read();
+    let bf: Vec<([u8;32], [u8;32], [u8;32])> = env::read();
     let pn: Vec<String>= env::read();
     let message: String = env::read();
 
     let blinding_factors: Vec<BlindingFactors> = bf.iter().map(|(a,b,g)| {
         BlindingFactors {
-            alpha: Scalar::from_str(a).unwrap(),
-            beta: Scalar::from_str(b).unwrap(),
-            gamma: Scalar::from_str(g).unwrap(),
+            alpha: Scalar::from_slice(a.as_slice()).unwrap(),
+            beta: Scalar::from_slice(b.as_slice()).unwrap(),
+            gamma: Scalar::from_slice(g.as_slice()).unwrap(),
         }
-    }).collect();
-
-    let pubkeys: Vec<PublicKey> = pk.iter().map(|p| {
-        PublicKey::from_str(p).unwrap()
     }).collect();
 
     let public_nonces: Vec<PubNonce> = pn.iter().map(|p| {
@@ -68,11 +62,10 @@ fn main() {
         })
         .sum();
 
-
     let tweaked_aggregated_pubkey: Point = key_agg_ctx.aggregated_pubkey();
 
     let b: MaybeScalar = aggregated_nonce.nonce_coefficient(tweaked_aggregated_pubkey, &message);
-    let agg_nonce: MaybePoint = aggregated_nonce.final_nonce(b);
+    let agg_nonce: Point = aggregated_nonce.final_nonce(b);
     let sign_nonce = agg_nonce + ggs + aas * G + bbs;
 
     let adaptor_point = MaybePoint::Infinity;
@@ -86,7 +79,6 @@ fn main() {
         compute_challenge_hash_tweak(&nonce_x_bytes, &tweaked_aggregated_pubkey.into(), &message);
 
 
-//    for (i, pubkey) in pubkeys.iter().enumerate() {
     let their_pubkey: PublicKey = key_agg_ctx.get_pubkey(i).unwrap();
     let pub_nonce: PubNonce = public_nonces[i].clone();
     let key_coeff = key_agg_ctx.key_coefficient(their_pubkey).unwrap();
@@ -100,20 +92,21 @@ fn main() {
 
     let bp = b + blinding_factors[i].gamma;
 
-    env::commit(&their_pubkey.to_string());
+    let pks = hex::encode(their_pubkey.to_sec1_bytes());
+
+    env::commit(&pks);
     env::commit(&pub_nonce.to_string());
     env::commit(&challenge_parity.unwrap_u8());
     env::commit(&nonce_parity.unwrap_u8());
-    env::commit(&hex::encode(bp));
-    env::commit(&hex::encode(ep));
+    env::commit(&hex::encode(bp.serialize()));
+    env::commit(&hex::encode(ep.serialize()));
 }
 
 fn aggregate_pubs(
-    pubkeys:  Vec<PublicKey>,
+    pubkeys: Vec<PublicKey>,
     public_nonces: Vec<PubNonce>,
     key_coeff_salt: Option<&[u8]>,
 ) -> (Vec<PublicKey>, Vec<PubNonce>, KeyAggContext, AggNonce) {
-
     let mut key_agg_ctx = KeyAggContext::new(pubkeys.clone(), key_coeff_salt).unwrap();
     key_agg_ctx = key_agg_ctx.with_unspendable_taproot_tweak().unwrap();
 

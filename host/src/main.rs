@@ -10,9 +10,10 @@ use musig2::{
     PartialSignature, PubNonce, SecNonce,
 };
 use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
-use secp256k1::PublicKey;
+use k256::PublicKey;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use musig2::secp::Scalar;
 
 #[derive(Debug, Parser)]
 #[command(verbatim_doc_comment)]
@@ -74,6 +75,20 @@ fn main() {
     // creates an ExecutorEnvBuilder. When you're done adding input, call
     // ExecutorEnvBuilder::build().
 
+    let blinding_factors: Vec<([u8;32], [u8;32], [u8;32])> = cfg
+        .blinding_factors
+        .iter()
+        .map(|(alpha, beta, gamma)| {
+            (
+                Scalar::from_str(alpha).unwrap().into(),
+                Scalar::from_str(beta).unwrap().into(),
+                Scalar::from_str(gamma).unwrap().into(),
+            )
+        })
+        .collect();
+
+    let pubkeys: Vec<PublicKey> = cfg.pubkeys.iter().map(|pk| parse_pubkey(pk)).collect();
+
     // For example:
     let input: usize = 0;
     let env = ExecutorEnv::builder()
@@ -81,9 +96,9 @@ fn main() {
         .unwrap()
         .write(&coeff_salt)
         .unwrap()
-        .write(&cfg.blinding_factors)
+        .write(&pubkeys)
         .unwrap()
-        .write(&cfg.pubkeys)
+        .write(&blinding_factors)
         .unwrap()
         .write(&cfg.pubnonces)
         .unwrap()
@@ -118,4 +133,13 @@ fn main() {
 
     let receipt_bytes = bincode::serialize(&receipt).unwrap();
     println!("{}", hex::encode(receipt_bytes));
+}
+
+fn parse_pubkey(pub_str: &str) -> PublicKey {
+    let pk_bytes = hex::decode(pub_str).unwrap();
+    let pk = PublicKey::from_sec1_bytes(&pk_bytes).unwrap();
+
+    println!("sec1 pub: {}", hex::encode(pk_bytes));
+
+    pk
 }
