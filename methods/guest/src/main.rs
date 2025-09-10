@@ -60,8 +60,8 @@ fn main() {
         .iter()
         .enumerate()
         .map(|(i, fac)| {
-            let nonce = public_nonces[i].clone();
-            fac.gamma * nonce.R2
+            // Avoid clone by using reference
+            fac.gamma * public_nonces[i].R2
             // TODO: mul is expensive, can we either multiply at the host, or change blinding factor to be addition instead?
         })
         .sum();
@@ -84,7 +84,7 @@ fn main() {
 
 
     let their_pubkey: PublicKey = key_agg_ctx.get_pubkey(i).unwrap();
-    let pub_nonce: PubNonce = public_nonces[i].clone();
+    let pub_nonce: &PubNonce = &public_nonces[i];
     let key_coeff = key_agg_ctx.key_coefficient(their_pubkey).unwrap();
 
     let even_parity = bool::from(!challenge_parity);
