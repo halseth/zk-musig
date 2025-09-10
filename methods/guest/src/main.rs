@@ -24,6 +24,7 @@ fn main() {
     let pn: Vec<String>= env::read();
     let message: String = env::read();
 
+    // TODO: where is the expensive bigint?
     let blinding_factors: Vec<BlindingFactors> = bf.iter().map(|(a,b,g)| {
         BlindingFactors {
             alpha: Scalar::from_slice(a.as_slice()).unwrap(),
@@ -50,8 +51,10 @@ fn main() {
         .map(|(i, fac)| {
             let pubkey: Point = pubkeys[i].into();
             fac.beta * pubkey
+            // TODO: mul is expensive, can we either multiply at the host, or change blinding factor to be addition instead?
         })
         .sum();
+    // TODO: summing is expensive, can we do it at the host?
 
     let ggs: MaybePoint = blinding_factors
         .iter()
@@ -59,6 +62,7 @@ fn main() {
         .map(|(i, fac)| {
             let nonce = public_nonces[i].clone();
             fac.gamma * nonce.R2
+            // TODO: mul is expensive, can we either multiply at the host, or change blinding factor to be addition instead?
         })
         .sum();
 
