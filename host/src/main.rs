@@ -191,6 +191,65 @@ fn create_proof_output(receipt: &Receipt, verified: bool, proof_type: Option<Str
     }
 }
 
+fn validate_config(cfg: &Config) {
+    // Validate coeff_salt
+    if let Err(e) = hex::decode(&cfg.coeff_salt) {
+        eprintln!("Error: Invalid coeff_salt hex: {}", e);
+        std::process::exit(2);
+    }
+    let salt_bytes = hex::decode(&cfg.coeff_salt).unwrap();
+    if salt_bytes.len() != 32 {
+        eprintln!("Error: coeff_salt must be exactly 32 bytes, got {}", salt_bytes.len());
+        std::process::exit(2);
+    }
+
+    // Validate arrays have matching lengths
+    if cfg.pubkeys.len() != cfg.pubnonces.len() {
+        eprintln!("Error: pubkeys count ({}) doesn't match pubnonces count ({})",
+            cfg.pubkeys.len(), cfg.pubnonces.len());
+        std::process::exit(2);
+    }
+
+    if cfg.pubkeys.len() != cfg.blinding_factors.len() {
+        eprintln!("Error: pubkeys count ({}) doesn't match blinding_factors count ({})",
+            cfg.pubkeys.len(), cfg.blinding_factors.len());
+        std::process::exit(2);
+    }
+
+    // Validate signer_index is within bounds
+    if cfg.signer_index >= cfg.pubkeys.len() {
+        eprintln!("Error: signer_index ({}) is out of bounds (max: {})",
+            cfg.signer_index, cfg.pubkeys.len() - 1);
+        std::process::exit(2);
+    }
+
+    // Validate pubkeys are valid hex
+    for (i, pk) in cfg.pubkeys.iter().enumerate() {
+        if let Err(e) = hex::decode(pk) {
+            eprintln!("Error: Invalid pubkey[{}] hex: {}", i, e);
+            std::process::exit(2);
+        }
+    }
+
+    // Validate blinding factors are valid hex scalars
+    for (i, (alpha, beta, gamma)) in cfg.blinding_factors.iter().enumerate() {
+        if let Err(e) = Scalar::from_str(alpha) {
+            eprintln!("Error: Invalid alpha in blinding_factor[{}]: {}", i, e);
+            std::process::exit(2);
+        }
+        if let Err(e) = Scalar::from_str(beta) {
+            eprintln!("Error: Invalid beta in blinding_factor[{}]: {}", i, e);
+            std::process::exit(2);
+        }
+        if let Err(e) = Scalar::from_str(gamma) {
+            eprintln!("Error: Invalid gamma in blinding_factor[{}]: {}", i, e);
+            std::process::exit(2);
+        }
+    }
+
+    eprintln!("Configuration validated successfully");
+}
+
 fn generate_proof(config_path: String, proof_type: Option<String>, output_file: Option<String>) {
     // Read config from file or stdin
     let config_content = if config_path == "-" {
@@ -200,6 +259,9 @@ fn generate_proof(config_path: String, proof_type: Option<String>, output_file: 
     };
 
     let cfg: Config = serde_json::from_str(&config_content).unwrap();
+
+    // Validate config before expensive operations
+    validate_config(&cfg);
 
     let coeff_salt: [u8; 32] = hex::decode(cfg.coeff_salt).unwrap().try_into().unwrap();
 
