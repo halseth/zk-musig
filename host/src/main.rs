@@ -320,9 +320,8 @@ fn generate_proof(config_path: String, proof_type: Option<String>, output_file: 
 
     let pubkeys: Vec<PublicKey> = cfg.pubkeys.iter().map(|pk| parse_pubkey(pk)).collect();
 
-    let input: usize = 0;
     let env = ExecutorEnv::builder()
-        .write(&input)
+        .write(&cfg.signer_index)
         .unwrap()
         .write(&coeff_salt)
         .unwrap()
