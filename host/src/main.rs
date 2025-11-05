@@ -127,6 +127,7 @@ fn write_output(output_file: Option<String>, content: String) {
 }
 
 fn verify_proof(input_file: Option<String>) {
+    eprintln!("Reading proof...");
     let content = read_input(input_file);
 
     // Parse JSON input
@@ -136,7 +137,14 @@ fn verify_proof(input_file: Option<String>) {
     let bin = hex::decode(hex_string.trim()).unwrap();
     let receipt: Receipt = bincode::deserialize(&bin).unwrap();
 
+    eprintln!("Verifying proof...");
     let verified = receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).is_ok();
+
+    if verified {
+        eprintln!("Proof verified successfully");
+    } else {
+        eprintln!("Proof verification failed");
+    }
 
     let output = create_proof_output(&receipt, verified, None);
     let json_output = serde_json::to_string_pretty(&output).unwrap();
@@ -228,27 +236,27 @@ fn generate_proof(config_path: String, proof_type: Option<String>, output_file: 
 
     let prover_opts: ProverOpts = match proof_type.as_deref() {
         None | Some("default") => {
-            println!("using default proof type");
+            eprintln!("Using default proof type");
             ProverOpts::default()
         }
         Some("fast") => {
-            println!("using fast proof type");
+            eprintln!("Using fast proof type");
             ProverOpts::fast()
         }
         Some("succinct") => {
-            println!("using succinct proof type");
+            eprintln!("Using succinct proof type");
             ProverOpts::succinct()
         }
         Some("groth16") => {
-            println!("using groth16 proof type");
+            eprintln!("Using groth16 proof type");
             ProverOpts::groth16()
         }
         Some("composite") => {
-            println!("using composite proof type");
+            eprintln!("Using composite proof type");
             ProverOpts::composite()
         }
         _ => {
-            println!("proof type invalid");
+            eprintln!("Error: Invalid proof type");
             return;
         }
     };
@@ -256,11 +264,15 @@ fn generate_proof(config_path: String, proof_type: Option<String>, output_file: 
     // Obtain the default prover.
     let prover = default_prover();
 
+    eprintln!("Generating proof...");
+
     // Proof information by proving the specified ELF binary.
     // This struct contains the receipt along with statistics about execution of the guest
     let prove_info = prover
         .prove_with_opts(env, GUEST_CODE_FOR_ZK_PROOF_ELF, &prover_opts)
         .unwrap();
+
+    eprintln!("Proof generated successfully");
 
     // extract the receipt.
     let receipt = prove_info.receipt;
@@ -280,8 +292,5 @@ fn generate_proof(config_path: String, proof_type: Option<String>, output_file: 
 fn parse_pubkey(pub_str: &str) -> PublicKey {
     let pk_bytes = hex::decode(pub_str).unwrap();
     let pk = PublicKey::from_sec1_bytes(&pk_bytes).unwrap();
-
-    println!("sec1 pub: {}", hex::encode(pk_bytes));
-
     pk
 }
