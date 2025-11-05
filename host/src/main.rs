@@ -13,7 +13,11 @@ use musig2::secp::Scalar;
 
 #[derive(Debug, Parser)]
 #[command(name = "zk-musig")]
-#[command(about = "Zero-knowledge proof generation and verification for MuSig2", long_about = None)]
+#[command(about = "Zero-knowledge proof generation and verification for MuSig2")]
+#[command(long_about = "Zero-knowledge proof generation and verification for MuSig2\n\n\
+    This tool provides a CLI for generating and verifying zero-knowledge proofs\n\
+    for MuSig2 multi-signature operations with blinding factors.\n\n\
+    Output format: All commands output JSON to stdout, progress to stderr")]
 #[command(version)]
 struct Args {
     #[command(subcommand)]
@@ -23,12 +27,36 @@ struct Args {
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Generate a zero-knowledge proof for MuSig2 signature
+    ///
+    /// EXAMPLES:
+    ///     # Generate proof from config file
+    ///     zk-musig prove --config config.json --output proof.json
+    ///
+    ///     # Use fast proof type
+    ///     zk-musig prove --config config.json --proof-type fast
+    ///
+    ///     # Read config from stdin, output to stdout
+    ///     cat config.json | zk-musig prove --config -
+    #[command(verbatim_doc_comment)]
     Prove {
         /// Path to configuration JSON file (use '-' for stdin)
+        ///
+        /// Config format:
+        ///   {
+        ///     "coeff_salt": "hex_string_32_bytes",
+        ///     "blinding_factors": [["alpha", "beta", "gamma"], ...],
+        ///     "pubkeys": ["hex_pubkey1", "hex_pubkey2", ...],
+        ///     "pubnonces": ["hex_nonce1", "hex_nonce2", ...],
+        ///     "message": "message_to_sign",
+        ///     "signer_index": 0
+        ///   }
         #[arg(short, long, value_name = "FILE")]
         config: String,
 
         /// Proof type to generate
+        ///
+        /// Types: default, fast, succinct, groth16, composite
+        /// Fast proofs are quicker to generate but larger
         #[arg(short = 't', long, value_name = "TYPE")]
         #[arg(value_parser = ["default", "fast", "succinct", "groth16", "composite"])]
         proof_type: Option<String>,
@@ -38,8 +66,21 @@ enum Commands {
         output: Option<String>,
     },
     /// Verify a zero-knowledge proof
+    ///
+    /// EXAMPLES:
+    ///     # Verify proof from file
+    ///     zk-musig verify --input proof.json
+    ///
+    ///     # Verify from stdin
+    ///     cat proof.json | zk-musig verify
+    ///
+    ///     # Verify and capture output
+    ///     zk-musig verify --input proof.json > result.json
+    #[command(verbatim_doc_comment)]
     Verify {
         /// Path to proof file to verify (use '-' for stdin, default is stdin)
+        ///
+        /// Expects JSON format with "proof" field containing hex-encoded proof
         #[arg(short, long, value_name = "FILE")]
         input: Option<String>,
     },
