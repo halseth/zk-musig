@@ -3,6 +3,10 @@ name = "host"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "zk-musig"
+path = "src/main.rs"
+
 [dependencies]
 methods = { path = "../methods" }
 risc0-zkvm = { version = "^3.0.1" }
