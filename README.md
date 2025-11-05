@@ -1,111 +1,170 @@
-# RISC Zero Rust Starter Template
+# zk-musig
 
-Welcome to the RISC Zero Rust Starter Template! This template is intended to
-give you a starting point for building a project using the RISC Zero zkVM.
-Throughout the template (including in this README), you'll find comments
-labelled `TODO` in places where you'll need to make changes. To better
-understand the concepts behind this template, check out the [zkVM
-Overview][zkvm-overview].
+Zero-knowledge proof generation and verification CLI for MuSig2 multi-signature operations with blinding factors.
 
-## Quick Start
+This tool uses [RISC Zero zkVM](https://www.risczero.com/) to generate proofs for MuSig2 signature operations, allowing privacy-preserving participation in multi-signature schemes.
 
-First, make sure [rustup] is installed. The
-[`rust-toolchain.toml`][rust-toolchain] file will be used by `cargo` to
-automatically install the correct version.
-
-To build all methods and execute the method within the zkVM, run the following
-command:
+## Installation
 
 ```bash
-cargo run
+cargo install --path host
 ```
 
-This is an empty template, and so there is no expected output (until you modify
-the code).
+This installs the `zk-musig` command to `~/.cargo/bin/`.
 
-### Executing the Project Locally in Development Mode
+## Usage
 
-During development, faster iteration upon code changes can be achieved by leveraging [dev-mode], we strongly suggest activating it during your early development phase. Furthermore, you might want to get insights into the execution statistics of your project, and this can be achieved by specifying the environment variable `RUST_LOG="[executor]=info"` before running your project.
+The CLI provides two main commands: `prove` to generate proofs and `verify` to verify them.
 
-Put together, the command to run your project in development mode while getting execution statistics is:
+### Generate a Proof
 
 ```bash
-RUST_LOG="[executor]=info" RISC0_DEV_MODE=1 cargo run
+zk-musig prove --config config.json --output proof.json [--proof-type TYPE]
 ```
 
-### Running Proofs Remotely on Bonsai
+**Config JSON format:**
+```json
+{
+  "coeff_salt": "64_character_hex_string",
+  "blinding_factors": [
+    ["alpha_hex", "beta_hex", "gamma_hex"],
+    ["alpha_hex", "beta_hex", "gamma_hex"]
+  ],
+  "pubkeys": ["hex_pubkey1", "hex_pubkey2"],
+  "pubnonces": ["hex_nonce1", "hex_nonce2"],
+  "message": "message_to_sign",
+  "signer_index": 0
+}
+```
 
-_Note: The Bonsai proving service is still in early Alpha; an API key is
-required for access. [Click here to request access][bonsai access]._
+**Proof types:**
+- `default` - Default RISC Zero proof
+- `fast` - Faster generation, larger size
+- `succinct` - Smaller, takes longer
+- `groth16` - Groth16 SNARK
+- `composite` - Composite receipt
 
-If you have access to the URL and API key to Bonsai you can run your proofs
-remotely. To prove in Bonsai mode, invoke `cargo run` with two additional
-environment variables:
+**Output format:**
+```json
+{
+  "success": true,
+  "verified": true,
+  "proof": "hex_encoded_proof_data",
+  "journal": {
+    "pubkey": "...",
+    "pubnonce": "...",
+    "challenge_parity": 0,
+    "nonce_parity": 1,
+    "b": "...",
+    "e": "..."
+  },
+  "proof_type": "fast"
+}
+```
+
+### Verify a Proof
 
 ```bash
-BONSAI_API_KEY="YOUR_API_KEY" BONSAI_API_URL="BONSAI_URL" cargo run
+zk-musig verify --input proof.json
 ```
 
-## How to Create a Project Based on This Template
+The verify command accepts the JSON output from the prove command and returns the same format with the `verified` field indicating whether verification succeeded.
 
-Search this template for the string `TODO`, and make the necessary changes to
-implement the required feature described by the `TODO` comment. Some of these
-changes will be complex, and so we have a number of instructional resources to
-assist you in learning how to write your own code for the RISC Zero zkVM:
+### Examples
 
-- The [RISC Zero Developer Docs][dev-docs] is a great place to get started.
-- Example projects are available in the [examples folder][examples] of
-  [`risc0`][risc0-repo] repository.
-- Reference documentation is available at [https://docs.rs][docs.rs], including
-  [`risc0-zkvm`][risc0-zkvm], [`cargo-risczero`][cargo-risczero],
-  [`risc0-build`][risc0-build], and [others][crates].
+**Generate a fast proof:**
+```bash
+zk-musig prove --config my-config.json --proof-type fast --output proof.json
+```
 
-## Directory Structure
+**Verify a proof:**
+```bash
+zk-musig verify --input proof.json
+```
 
-It is possible to organize the files for these components in various ways.
-However, in this starter template we use a standard directory structure for zkVM
-applications, which we think is a good starting point for your applications.
+**Use stdin/stdout for piping:**
+```bash
+cat config.json | zk-musig prove --config - > proof.json
+cat proof.json | zk-musig verify | jq '.verified'
+```
+
+### Help
+
+For complete documentation, run:
+```bash
+zk-musig --help
+zk-musig prove --help
+zk-musig verify --help
+```
+
+## Input Validation
+
+The tool validates configuration before proof generation:
+- `coeff_salt` must be exactly 32 bytes (64 hex characters)
+- Array lengths must match: `pubkeys.len() == pubnonces.len() == blinding_factors.len()`
+- `signer_index` must be within bounds (`< pubkeys.len()`)
+- All hex fields must be valid hexadecimal strings
+- All scalar values must be valid
+
+Validation errors exit with code 2 and provide clear error messages.
+
+## Output Format
+
+- **JSON output** goes to stdout
+- **Progress messages** go to stderr
+- This allows easy piping and redirection: `zk-musig prove --config config.json > proof.json 2> progress.log`
+
+## Exit Codes
+
+- `0` - Success
+- `1` - Runtime error
+- `2` - Invalid input/configuration
+
+## Development
+
+### Project Structure
 
 ```text
-project_name
-├── Cargo.toml
-├── host
-│   ├── Cargo.toml
-│   └── src
-│       └── main.rs                    <-- [Host code goes here]
-└── methods
-    ├── Cargo.toml
-    ├── build.rs
-    ├── guest
-    │   ├── Cargo.toml
-    │   └── src
-    │       └── method_name.rs         <-- [Guest code goes here]
-    └── src
-        └── lib.rs
+zk-musig/
+├── host/           # CLI application (host code)
+│   └── src/
+│       └── main.rs
+└── methods/        # zkVM guest code
+    └── guest/
+        └── src/
+            └── main.rs
 ```
 
-## Video Tutorial
+### Building
 
-For a walk-through of how to build with this template, check out this [excerpt
-from our workshop at ZK HACK III][zkhack-iii].
+```bash
+# Debug build
+cargo build
 
-## Questions, Feedback, and Collaborations
+# Release build (optimized)
+cargo build --release
 
-We'd love to hear from you on [Discord][discord] or [Twitter][twitter].
+# Run without installing
+cargo run -- prove --config config.json
+```
 
-[bonsai access]: https://bonsai.xyz/apply
-[cargo-risczero]: https://docs.rs/cargo-risczero
-[crates]: https://github.com/risc0/risc0/blob/main/README.md#rust-binaries
-[dev-docs]: https://dev.risczero.com
-[dev-mode]: https://dev.risczero.com/api/generating-proofs/dev-mode
-[discord]: https://discord.gg/risczero
-[docs.rs]: https://docs.rs/releases/search?query=risc0
-[examples]: https://github.com/risc0/risc0/tree/main/examples
-[risc0-build]: https://docs.rs/risc0-build
-[risc0-repo]: https://www.github.com/risc0/risc0
-[risc0-zkvm]: https://docs.rs/risc0-zkvm
-[rust-toolchain]: rust-toolchain.toml
-[rustup]: https://rustup.rs
-[twitter]: https://twitter.com/risczero
-[zkhack-iii]: https://www.youtube.com/watch?v=Yg_BGqj_6lg&list=PLcPzhUaCxlCgig7ofeARMPwQ8vbuD6hC5&index=5
-[zkvm-overview]: https://dev.risczero.com/zkvm
+### Development Mode
+
+For faster iteration during development:
+
+```bash
+RISC0_DEV_MODE=1 cargo run -- prove --config config.json
+```
+
+Note: Dev mode proofs have no cryptographic integrity and should only be used for testing.
+
+## Technical Details
+
+- **zkVM:** RISC Zero version 3.0.1
+- **Signature scheme:** MuSig2 with taproot tweaking
+- **Curve:** secp256k1 (via k256 crate)
+- **Proof systems:** Supports multiple backends (STARK, Groth16, composite)
+
+## License
+
+See [LICENSE](LICENSE) file.
