@@ -5,7 +5,7 @@ use std::fs;
 use clap::{Parser, Subcommand};
 use hex;
 use methods::{GUEST_CODE_FOR_ZK_PROOF_ELF, GUEST_CODE_FOR_ZK_PROOF_ID};
-use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, Receipt};
+use risc0_zkvm::{default_prover, ExecutorEnv, InnerReceipt, ProverOpts, Receipt};
 use k256::PublicKey;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -55,6 +55,31 @@ struct Config {
     pub signer_index: usize,
 }
 
+#[derive(Serialize, Debug)]
+struct ProofOutput {
+    pub success: bool,
+    pub verified: bool,
+    pub proof: String,
+    pub journal: JournalData,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proof_type: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+struct JournalData {
+    pub pubkey: String,
+    pub pubnonce: String,
+    pub challenge_parity: u8,
+    pub nonce_parity: u8,
+    pub b: String,
+    pub e: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ProofInput {
+    pub proof: String,
+}
+
 fn main() {
     // Initialize tracing. In order to view logs, run `RUST_LOG=info cargo run`
     tracing_subscriber::fmt()
@@ -73,8 +98,8 @@ fn main() {
     }
 }
 
-fn verify_proof(input_file: Option<String>) {
-    let hex_string = match input_file.as_deref() {
+fn read_input(input_file: Option<String>) -> String {
+    match input_file.as_deref() {
         None | Some("-") => {
             // Read from stdin
             let mut buffer = String::new();
@@ -85,27 +110,85 @@ fn verify_proof(input_file: Option<String>) {
             // Read from file
             fs::read_to_string(path).unwrap()
         }
-    };
+    }
+}
+
+fn write_output(output_file: Option<String>, content: String) {
+    match output_file {
+        None => {
+            // Write to stdout
+            println!("{}", content);
+        }
+        Some(path) => {
+            // Write to file
+            fs::write(path, content).unwrap();
+        }
+    }
+}
+
+fn verify_proof(input_file: Option<String>) {
+    let content = read_input(input_file);
+
+    // Parse JSON input
+    let input: ProofInput = serde_json::from_str(&content).unwrap();
+    let hex_string = input.proof;
 
     let bin = hex::decode(hex_string.trim()).unwrap();
     let receipt: Receipt = bincode::deserialize(&bin).unwrap();
-    receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
-    println!("verified");
+
+    let verified = receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).is_ok();
+
+    let output = create_proof_output(&receipt, verified, None);
+    let json_output = serde_json::to_string_pretty(&output).unwrap();
+    write_output(None, json_output);
+}
+
+fn create_proof_output(receipt: &Receipt, verified: bool, proof_type: Option<String>) -> ProofOutput {
+    // Serialize receipt to hex
+    let receipt_bytes = bincode::serialize(&receipt).unwrap();
+    let hex_proof = hex::encode(receipt_bytes);
+
+    // Extract proof type from receipt if not provided
+    let proof_type = proof_type.or_else(|| {
+        Some(match &receipt.inner {
+            InnerReceipt::Composite(_) => "composite".to_string(),
+            InnerReceipt::Succinct(_) => "succinct".to_string(),
+            InnerReceipt::Groth16(_) => "groth16".to_string(),
+            InnerReceipt::Fake(_) => "fake".to_string(),
+            _ => "unknown".to_string(),
+        })
+    });
+
+    // Decode journal data
+    let pubkey: String = receipt.journal.decode().unwrap();
+    let pubnonce: String = receipt.journal.decode().unwrap();
+    let challenge_parity: u8 = receipt.journal.decode().unwrap();
+    let nonce_parity: u8 = receipt.journal.decode().unwrap();
+    let b: String = receipt.journal.decode().unwrap();
+    let e: String = receipt.journal.decode().unwrap();
+
+    ProofOutput {
+        success: true,
+        verified,
+        proof: hex_proof,
+        journal: JournalData {
+            pubkey,
+            pubnonce,
+            challenge_parity,
+            nonce_parity,
+            b,
+            e,
+        },
+        proof_type,
+    }
 }
 
 fn generate_proof(config_path: String, proof_type: Option<String>, output_file: Option<String>) {
     // Read config from file or stdin
-    let config_content = match config_path.as_str() {
-        "-" => {
-            // Read from stdin
-            let mut buffer = String::new();
-            io::stdin().read_to_string(&mut buffer).unwrap();
-            buffer
-        }
-        path => {
-            // Read from file
-            fs::read_to_string(path).unwrap()
-        }
+    let config_content = if config_path == "-" {
+        read_input(None)
+    } else {
+        read_input(Some(config_path))
     };
 
     let cfg: Config = serde_json::from_str(&config_content).unwrap();
@@ -182,32 +265,16 @@ fn generate_proof(config_path: String, proof_type: Option<String>, output_file: 
     // extract the receipt.
     let receipt = prove_info.receipt;
 
-    // Decode journal data
-    let _pubkey: String = receipt.journal.decode().unwrap();
-    let _pubnonce: String = receipt.journal.decode().unwrap();
-    let _challenge_parity: u8 = receipt.journal.decode().unwrap();
-    let _nonce_parity: u8 = receipt.journal.decode().unwrap();
-    let _b: String = receipt.journal.decode().unwrap();
-    let _e: String = receipt.journal.decode().unwrap();
-
     // The receipt was verified at the end of proving, but the below code is an
     // example of how someone else could verify this receipt.
-    receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
+    let verified = receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).is_ok();
 
-    let receipt_bytes = bincode::serialize(&receipt).unwrap();
-    let hex_output = hex::encode(receipt_bytes);
+    // Create JSON output using shared helper
+    let output = create_proof_output(&receipt, verified, proof_type);
+    let json_output = serde_json::to_string_pretty(&output).unwrap();
 
     // Write output to file or stdout
-    match output_file {
-        None => {
-            // Write to stdout
-            println!("{}", hex_output);
-        }
-        Some(path) => {
-            // Write to file
-            fs::write(path, hex_output).unwrap();
-        }
-    }
+    write_output(output_file, json_output);
 }
 
 fn parse_pubkey(pub_str: &str) -> PublicKey {
