@@ -173,7 +173,7 @@ fn aggregate_pubs(
     public_nonces: Vec<PubNonce>,
     key_coeff_salt: Option<&[u8]>,
 ) -> (Vec<PublicKey>, Vec<PubNonce>, KeyAggContext, AggNonce) {
-    let mut key_agg_ctx = KeyAggContext::new(pubkeys.clone(), key_coeff_salt).unwrap();
+    let mut key_agg_ctx = KeyAggContext::new(pubkeys.iter().copied(), key_coeff_salt).unwrap();
     key_agg_ctx = key_agg_ctx.with_unspendable_taproot_tweak().unwrap();
 
     // We manually aggregate the nonces together and then construct our partial signature.
