@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 methods = { path = "../methods" }
-risc0-zkvm = { version = "^3.0.1" }
+risc0-zkvm = { version = "=3.0.3" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.5.32", features = ["derive"] }
 serde = "1.0"
