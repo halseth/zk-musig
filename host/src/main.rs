@@ -93,7 +93,7 @@ struct Config {
     pub pubkeys: Vec<String>,
     pub pubnonces: Vec<String>,
     pub message: String,
-    pub signer_index: usize,
+    pub signer_index: u32,
 }
 
 #[derive(Serialize, Debug)]
@@ -258,7 +258,7 @@ fn validate_config(cfg: &Config) {
     }
 
     // Validate signer_index is within bounds
-    if cfg.signer_index >= cfg.pubkeys.len() {
+    if cfg.signer_index >= cfg.pubkeys.len() as u32 {
         eprintln!("Error: signer_index ({}) is out of bounds (max: {})",
             cfg.signer_index, cfg.pubkeys.len() - 1);
         std::process::exit(2);

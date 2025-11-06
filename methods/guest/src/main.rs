@@ -17,7 +17,8 @@ fn main() {
     // TODO: Implement your guest code here
 
     // read the input
-    let i: usize = env::read();
+    let i: u32 = env::read();
+    let i = i as usize;
     let coeff_salt: [u8; 32] = env::read();
     let pubkeys: Vec<PublicKey>= env::read();
     let bf: Vec<([u8;32], [u8;32], [u8;32])> = env::read();
