@@ -11,6 +11,24 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use musig2::secp::Scalar;
 
+/// Journal output from the guest program
+/// All data is wrapped in this single structure for atomic commitment
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct JournalOutput {
+    /// The public key (hex string)
+    pubkey: String,
+    /// The public nonce (hex string)
+    pubnonce: String,
+    /// Challenge parity bit
+    challenge_parity: u8,
+    /// Nonce parity bit
+    nonce_parity: u8,
+    /// The b value (hex string)
+    b: String,
+    /// The e value (hex string)
+    e: String,
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "zk-musig")]
 #[command(about = "Zero-knowledge proof generation and verification for MuSig2")]
@@ -208,25 +226,20 @@ fn create_proof_output(receipt: &Receipt, verified: bool, proof_type: Option<Str
         })
     });
 
-    // Decode journal data
-    let pubkey: String = receipt.journal.decode().unwrap();
-    let pubnonce: String = receipt.journal.decode().unwrap();
-    let challenge_parity: u8 = receipt.journal.decode().unwrap();
-    let nonce_parity: u8 = receipt.journal.decode().unwrap();
-    let b: String = receipt.journal.decode().unwrap();
-    let e: String = receipt.journal.decode().unwrap();
+    // Decode the entire journal output structure in one operation
+    let journal_output: JournalOutput = receipt.journal.decode().unwrap();
 
     ProofOutput {
         success: true,
         verified,
         proof: hex_proof,
         journal: JournalData {
-            pubkey,
-            pubnonce,
-            challenge_parity,
-            nonce_parity,
-            b,
-            e,
+            pubkey: journal_output.pubkey,
+            pubnonce: journal_output.pubnonce,
+            challenge_parity: journal_output.challenge_parity,
+            nonce_parity: journal_output.nonce_parity,
+            b: journal_output.b,
+            e: journal_output.e,
         },
         proof_type,
     }

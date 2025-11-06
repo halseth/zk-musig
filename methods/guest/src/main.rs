@@ -6,6 +6,25 @@ use musig2::{
 use musig2::secp::{G, MaybePoint, MaybeScalar, Point, Scalar};
 use std::str::FromStr;
 use hex::ToHex;
+use serde::{Deserialize, Serialize};
+
+/// Journal output from the guest program
+/// All data is wrapped in this single structure for atomic commitment
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct JournalOutput {
+    /// The public key (hex string)
+    pubkey: String,
+    /// The public nonce (hex string)
+    pubnonce: String,
+    /// Challenge parity bit
+    challenge_parity: u8,
+    /// Nonce parity bit
+    nonce_parity: u8,
+    /// The b value (hex string)
+    b: String,
+    /// The e value (hex string)
+    e: String,
+}
 
 struct BlindingFactors {
     alpha: Scalar,
@@ -98,13 +117,21 @@ fn main() {
     let bp = b + blinding_factors[i].gamma;
 
     let pks = hex::encode(their_pubkey.to_sec1_bytes());
+    let bp_hex = hex::encode(bp.serialize());
+    let ep_hex = hex::encode(ep.serialize());
 
-    env::commit(&pks);
-    env::commit(&pub_nonce.to_string());
-    env::commit(&challenge_parity.unwrap_u8());
-    env::commit(&nonce_parity.unwrap_u8());
-    env::commit(&hex::encode(bp.serialize()));
-    env::commit(&hex::encode(ep.serialize()));
+    // Create a single JournalOutput structure with all data as hex strings
+    let journal_output = JournalOutput {
+        pubkey: pks,
+        pubnonce: pub_nonce.to_string(),
+        challenge_parity: challenge_parity.unwrap_u8(),
+        nonce_parity: nonce_parity.unwrap_u8(),
+        b: bp_hex,
+        e: ep_hex,
+    };
+
+    // Commit the entire structure at once
+    env::commit(&journal_output);
 }
 
 fn aggregate_pubs(
