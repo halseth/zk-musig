@@ -53,7 +53,7 @@ fn main() {
 
     // read the input
     let i: u32 = env::read();
-    let i = i as usize;
+    let signer_index = i as usize;
     let coeff_salt: [u8; 32] = env::read();
     let pubkeys: Vec<PublicKey>= env::read();
     let bf: Vec<([u8;32], [u8;32], [u8;32])> = env::read();
@@ -137,18 +137,18 @@ fn main() {
         compute_challenge_hash_tweak(&nonce_x_bytes, &tweaked_aggregated_pubkey.into(), &message);
 
 
-    let their_pubkey: PublicKey = key_agg_ctx.get_pubkey(i).unwrap();
-    let pub_nonce: &PubNonce = &public_nonces[i];
+    let their_pubkey: PublicKey = key_agg_ctx.get_pubkey(signer_index).unwrap();
+    let pub_nonce: &PubNonce = &public_nonces[signer_index];
     let key_coeff = key_agg_ctx.key_coefficient(their_pubkey).unwrap();
 
     let even_parity = bool::from(!challenge_parity);
     let ep = if sign_nonce.has_even_y() ^ even_parity {
-        key_coeff * e - blinding_factors[i].beta
+        key_coeff * e - blinding_factors[signer_index].beta
     } else {
-        key_coeff * e + blinding_factors[i].beta
+        key_coeff * e + blinding_factors[signer_index].beta
     };
 
-    let bp = b + blinding_factors[i].gamma;
+    let bp = b + blinding_factors[signer_index].gamma;
 
     let pks = hex::encode(their_pubkey.to_sec1_bytes());
     let bp_hex = hex::encode(bp.serialize());
@@ -177,6 +177,10 @@ fn aggregate_pubs(
     key_agg_ctx = key_agg_ctx.with_unspendable_taproot_tweak().unwrap();
 
     // We manually aggregate the nonces together and then construct our partial signature.
+    // TODO: would it be possible to have the input to the guest be
+    // pubnonce[i] + (agg_nonce-pubnonce[i]) to make the proof independent of number of signers?
+    // or would it compromise on security for the verifiers
+    // same for other places (blinding factors, pubkeys) where we aggregate.
     let aggregated_nonce: AggNonce = public_nonces.iter().sum();
     (pubkeys, public_nonces, key_agg_ctx, aggregated_nonce)
 }
