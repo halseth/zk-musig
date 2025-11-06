@@ -104,38 +104,82 @@ enum Commands {
     },
 }
 
+/// Configuration for proof generation
+///
+/// All cryptographic values should be provided as lowercase hex strings.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct Config {
+    /// Coefficient salt for key aggregation (hex-encoded, 32 bytes)
     pub coeff_salt: String,
+
+    /// Blinding factors as tuples of (alpha, beta, gamma) for each signer (hex-encoded scalars)
+    /// Each scalar should be a 32-byte value encoded as a 64-character hex string
     pub blinding_factors: Vec<(String, String, String)>,
+
+    /// Public keys for all signers (hex-encoded, 33 bytes compressed format)
     pub pubkeys: Vec<String>,
+
+    /// Public nonces for all signers (hex-encoded, 66 bytes)
     pub pubnonces: Vec<String>,
+
+    /// Message to sign (hex-encoded bytes)
+    /// This is typically the sighash of a transaction
     pub message: String,
+
+    /// Index of the signer this proof is for (0-based)
     pub signer_index: u32,
 }
 
+/// Output from proof generation or verification
+///
+/// Contains the proof and extracted journal data with cryptographic commitments.
 #[derive(Serialize, Debug)]
 struct ProofOutput {
+    /// Whether the operation succeeded
     pub success: bool,
+
+    /// Whether the proof was verified successfully
     pub verified: bool,
+
+    /// The proof itself (hex-encoded binary data)
     pub proof: String,
+
+    /// Extracted journal data from the proof
     pub journal: JournalData,
+
+    /// Type of proof generated (composite, succinct, groth16, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proof_type: Option<String>,
 }
 
+/// Journal data committed to in the zero-knowledge proof
+///
+/// All cryptographic values are hex-encoded strings.
 #[derive(Serialize, Debug)]
 struct JournalData {
+    /// Public key of the signer (hex-encoded, 33 bytes compressed format)
     pub pubkey: String,
+
+    /// Public nonce used by the signer (hex-encoded, 66 bytes)
     pub pubnonce: String,
+
+    /// Parity bit for the challenge (0 or 1)
     pub challenge_parity: u8,
+
+    /// Parity bit for the signing nonce (0 or 1)
     pub nonce_parity: u8,
+
+    /// Blinded nonce coefficient b' = b + gamma (hex-encoded scalar, 32 bytes)
     pub b: String,
+
+    /// Blinded challenge e' (hex-encoded scalar, 32 bytes)
     pub e: String,
 }
 
+/// Input for proof verification
 #[derive(Deserialize, Debug)]
 struct ProofInput {
+    /// The proof to verify (hex-encoded binary data)
     pub proof: String,
 }
 

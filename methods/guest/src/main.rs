@@ -9,20 +9,34 @@ use hex::ToHex;
 use serde::{Deserialize, Serialize};
 
 /// Journal output from the guest program
-/// All data is wrapped in this single structure for atomic commitment
+///
+/// All data is wrapped in this single structure for atomic commitment.
+/// This ensures that all values are committed to together in the zero-knowledge proof,
+/// preventing selective disclosure or manipulation of individual fields.
+///
+/// All cryptographic values are hex-encoded strings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct JournalOutput {
-    /// The public key (hex string)
+    /// Public key of the signer (hex-encoded, 33 bytes compressed format)
     pubkey: String,
-    /// The public nonce (hex string)
+
+    /// Public nonce used by the signer (hex-encoded, 66 bytes)
     pubnonce: String,
-    /// Challenge parity bit
+
+    /// Parity bit for the challenge (0 or 1)
+    /// Used to determine sign adjustments in the signature
     challenge_parity: u8,
-    /// Nonce parity bit
+
+    /// Parity bit for the signing nonce (0 or 1)
+    /// Indicates whether the signing nonce has even Y coordinate
     nonce_parity: u8,
-    /// The b value (hex string)
+
+    /// Blinded nonce coefficient b' = b + gamma (hex-encoded scalar, 32 bytes)
+    /// This is the nonce coefficient with the blinding factor applied
     b: String,
-    /// The e value (hex string)
+
+    /// Blinded challenge e' (hex-encoded scalar, 32 bytes)
+    /// This is the challenge with key coefficient and blinding applied
     e: String,
 }
 
@@ -42,7 +56,10 @@ fn main() {
     let pubkeys: Vec<PublicKey>= env::read();
     let bf: Vec<([u8;32], [u8;32], [u8;32])> = env::read();
     let pn: Vec<String>= env::read();
-    let message: String = env::read();
+    let message_hex: String = env::read();
+
+    // Decode the hex message to bytes
+    let message = hex::decode(&message_hex).expect("Failed to decode message hex");
 
     // TODO: where is the expensive bigint?
     let blinding_factors: Vec<BlindingFactors> = bf.iter().map(|(a,b,g)| {
