@@ -7,6 +7,8 @@ use musig2::secp::{G, MaybePoint, MaybeScalar, Point, Scalar};
 use std::str::FromStr;
 use hex::ToHex;
 use serde::{Deserialize, Serialize};
+use k256::ProjectivePoint;
+use k256::elliptic_curve::ops::LinearCombinationExt;
 
 /// Journal output from the guest program
 ///
@@ -82,26 +84,41 @@ fn main() {
     ) = aggregate_pubs(pubkeys, public_nonces, Some(&coeff_salt));
 
     let aas: MaybeScalar = blinding_factors.iter().map(|fac| fac.alpha).sum();
-    let bbs: MaybePoint = blinding_factors
-        .iter()
-        .enumerate()
-        .map(|(i, fac)| {
-            let pubkey: Point = pubkeys[i].into();
-            fac.beta * pubkey
-            // TODO: mul is expensive, can we either multiply at the host, or change blinding factor to be addition instead?
-        })
-        .sum();
-    // TODO: summing is expensive, can we do it at the host?
 
-    let ggs: MaybePoint = blinding_factors
+    // Use lincomb (multi-scalar multiplication) for bbs: Σ(beta_i * pubkey_i)
+    // This is more efficient than individual multiplications + sum
+    let bbs_pairs: Vec<(ProjectivePoint, k256::Scalar)> = blinding_factors
         .iter()
         .enumerate()
         .map(|(i, fac)| {
-            // Avoid clone by using reference
-            fac.gamma * public_nonces[i].R2
-            // TODO: mul is expensive, can we either multiply at the host, or change blinding factor to be addition instead?
+            // pubkeys[i] is already k256::PublicKey, convert directly to ProjectivePoint
+            let k256_point: ProjectivePoint = pubkeys[i].into();
+            let k256_scalar: k256::Scalar = fac.beta.into();
+            (k256_point, k256_scalar)
         })
-        .sum();
+        .collect();
+
+    let bbs_result = ProjectivePoint::lincomb_ext(&bbs_pairs[..]);
+    // Convert back: ProjectivePoint -> AffinePoint -> PublicKey -> Point
+    let bbs: Point = k256::PublicKey::from_affine(bbs_result.into()).unwrap().into();
+
+    // Use lincomb for ggs: Σ(gamma_i * R2_i)
+    let ggs_pairs: Vec<(ProjectivePoint, k256::Scalar)> = blinding_factors
+        .iter()
+        .enumerate()
+        .map(|(i, fac)| {
+            let r2_point: Point = public_nonces[i].R2;
+            // Convert secp::Point to k256::ProjectivePoint via Into trait
+            let k256_affine: k256::AffinePoint = r2_point.into();
+            let k256_point: ProjectivePoint = k256_affine.into();
+            let k256_scalar: k256::Scalar = fac.gamma.into();
+            (k256_point, k256_scalar)
+        })
+        .collect();
+
+    let ggs_result = ProjectivePoint::lincomb_ext(&ggs_pairs[..]);
+    // Convert back: ProjectivePoint -> AffinePoint -> PublicKey -> Point
+    let ggs: Point = k256::PublicKey::from_affine(ggs_result.into()).unwrap().into();
 
     let tweaked_aggregated_pubkey: Point = key_agg_ctx.aggregated_pubkey();
 
