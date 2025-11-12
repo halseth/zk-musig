@@ -28,6 +28,8 @@ struct JournalOutput {
     b: String,
     /// The e value (hex string)
     e: String,
+    /// Message commitment SHA256(e || message_salt) (hex string)
+    message_commitment: String,
 }
 
 #[derive(Debug, Parser)]
@@ -126,6 +128,10 @@ struct Config {
     /// Message to sign (hex-encoded bytes)
     /// This is typically the sighash of a transaction
     pub message: String,
+
+    /// Message salt for binding transaction to proof (hex-encoded, 32 bytes)
+    /// Used to compute message_commitment = SHA256(message || message_salt)
+    pub message_salt: String,
 
     /// Index of the signer this proof is for (0-based)
     pub signer_index: u32,
@@ -380,6 +386,17 @@ fn generate_proof(config_path: String, proof_type: Option<String>, output_file: 
 
     let pubkeys: Vec<PublicKey> = cfg.pubkeys.iter().map(|pk| parse_pubkey(pk)).collect();
 
+    // Validate and parse message_salt
+    let message_salt_bytes = hex::decode(&cfg.message_salt).unwrap_or_else(|_| {
+        eprintln!("Error: Invalid message_salt hex");
+        std::process::exit(1);
+    });
+    if message_salt_bytes.len() != 32 {
+        eprintln!("Error: message_salt must be exactly 32 bytes");
+        std::process::exit(1);
+    }
+    let message_salt: [u8; 32] = message_salt_bytes.try_into().unwrap();
+
     let env = ExecutorEnv::builder()
         .write(&cfg.signer_index)
         .unwrap()
@@ -392,6 +409,8 @@ fn generate_proof(config_path: String, proof_type: Option<String>, output_file: 
         .write(&cfg.pubnonces)
         .unwrap()
         .write(&cfg.message)
+        .unwrap()
+        .write(&message_salt)
         .unwrap()
         .build()
         .unwrap();

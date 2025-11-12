@@ -11,6 +11,7 @@ musig2 = { git = "https://github.com/halseth/musig2.git", rev = "3af3b28", featu
 hex = "0.4.3"
 k256 = { version = "=0.13.4", features = ["arithmetic", "serde", "expose-field", "std", "ecdsa", "pkcs8", "schnorr"], default-features = false }
 serde = { version = "1.0", features = ["derive", "alloc"], default-features = false }
+sha2 = { version = "0.10.9", default-features = false }
 
 [patch.crates-io]
 # Placing these patch statement in the workspace Cargo.toml will add RISC Zero SHA-256 and bigint

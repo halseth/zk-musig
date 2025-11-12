@@ -9,6 +9,7 @@ use hex::ToHex;
 use serde::{Deserialize, Serialize};
 use k256::ProjectivePoint;
 use k256::elliptic_curve::ops::LinearCombinationExt;
+use sha2::{Sha256, Digest};
 
 /// Journal output from the guest program
 ///
@@ -40,6 +41,10 @@ struct JournalOutput {
     /// Blinded challenge e' (hex-encoded scalar, 32 bytes)
     /// This is the challenge with key coefficient and blinding applied
     e: String,
+
+    /// Message commitment SHA256(e || message_salt) (hex-encoded, 32 bytes)
+    /// Used to bind the proof to a specific transaction without revealing the message
+    message_commitment: String,
 }
 
 struct BlindingFactors {
@@ -59,6 +64,7 @@ fn main() {
     let bf: Vec<([u8;32], [u8;32], [u8;32])> = env::read();
     let pn: Vec<String>= env::read();
     let message_hex: String = env::read();
+    let message_salt: [u8; 32] = env::read();
 
     // Decode the hex message to bytes
     let message = hex::decode(&message_hex).expect("Failed to decode message hex");
@@ -154,6 +160,13 @@ fn main() {
     let bp_hex = hex::encode(bp.serialize());
     let ep_hex = hex::encode(ep.serialize());
 
+    // Compute message commitment: SHA256(message || message_salt)
+    // This binds the proof to the transaction without revealing the message
+    let mut hasher = Sha256::new();
+    hasher.update(&message);
+    hasher.update(&message_salt);
+    let message_commitment: [u8; 32] = hasher.finalize().into();
+
     // Create a single JournalOutput structure with all data as hex strings
     let journal_output = JournalOutput {
         pubkey: pks,
@@ -162,6 +175,7 @@ fn main() {
         nonce_parity: nonce_parity.unwrap_u8(),
         b: bp_hex,
         e: ep_hex,
+        message_commitment: hex::encode(message_commitment),
     };
 
     // Commit the entire structure at once
