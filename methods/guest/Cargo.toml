@@ -6,6 +6,7 @@ edition = "2021"
 [workspace]
 
 [dependencies]
+zk-musig-shared = { path = "../../shared" }
 risc0-zkvm = { version = "=3.0.3", default-features = false, features = ['std'] }
 musig2 = { git = "https://github.com/halseth/musig2.git", rev = "3af3b28", features = ["k256"], default-features = false}
 hex = "0.4.3"

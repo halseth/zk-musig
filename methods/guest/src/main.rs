@@ -6,46 +6,10 @@ use musig2::{
 use musig2::secp::{G, MaybePoint, MaybeScalar, Point, Scalar};
 use std::str::FromStr;
 use hex::ToHex;
-use serde::{Deserialize, Serialize};
 use k256::ProjectivePoint;
 use k256::elliptic_curve::ops::LinearCombinationExt;
 use sha2::{Sha256, Digest};
-
-/// Journal output from the guest program
-///
-/// All data is wrapped in this single structure for atomic commitment.
-/// This ensures that all values are committed to together in the zero-knowledge proof,
-/// preventing selective disclosure or manipulation of individual fields.
-///
-/// All cryptographic values are hex-encoded strings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct JournalOutput {
-    /// Public key of the signer (hex-encoded, 33 bytes compressed format)
-    pubkey: String,
-
-    /// Public nonce used by the signer (hex-encoded, 66 bytes)
-    pubnonce: String,
-
-    /// Parity bit for the challenge (0 or 1)
-    /// Used to determine sign adjustments in the signature
-    challenge_parity: u8,
-
-    /// Parity bit for the signing nonce (0 or 1)
-    /// Indicates whether the signing nonce has even Y coordinate
-    nonce_parity: u8,
-
-    /// Blinded nonce coefficient b' = b + gamma (hex-encoded scalar, 32 bytes)
-    /// This is the nonce coefficient with the blinding factor applied
-    b: String,
-
-    /// Blinded challenge e' (hex-encoded scalar, 32 bytes)
-    /// This is the challenge with key coefficient and blinding applied
-    e: String,
-
-    /// Message commitment SHA256(e || message_salt) (hex-encoded, 32 bytes)
-    /// Used to bind the proof to a specific transaction without revealing the message
-    message_commitment: String,
-}
+use zk_musig_shared::JournalOutput;
 
 struct BlindingFactors {
     alpha: Scalar,

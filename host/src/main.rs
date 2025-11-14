@@ -11,26 +11,7 @@ use k256::PublicKey;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use musig2::secp::Scalar;
-
-/// Journal output from the guest program
-/// All data is wrapped in this single structure for atomic commitment
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct JournalOutput {
-    /// The public key (hex string)
-    pubkey: String,
-    /// The public nonce (hex string)
-    pubnonce: String,
-    /// Challenge parity bit
-    challenge_parity: u8,
-    /// Nonce parity bit
-    nonce_parity: u8,
-    /// The b value (hex string)
-    b: String,
-    /// The e value (hex string)
-    e: String,
-    /// Message commitment SHA256(e || message_salt) (hex string)
-    message_commitment: String,
-}
+use zk_musig_shared::JournalOutput;
 
 #[derive(Debug, Parser)]
 #[command(name = "zk-musig")]
@@ -152,36 +133,13 @@ struct ProofOutput {
     pub proof: String,
 
     /// Extracted journal data from the proof
-    pub journal: JournalData,
+    pub journal: JournalOutput,
 
     /// Type of proof generated (composite, succinct, groth16, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proof_type: Option<String>,
 }
 
-/// Journal data committed to in the zero-knowledge proof
-///
-/// All cryptographic values are hex-encoded strings.
-#[derive(Serialize, Debug)]
-struct JournalData {
-    /// Public key of the signer (hex-encoded, 33 bytes compressed format)
-    pub pubkey: String,
-
-    /// Public nonce used by the signer (hex-encoded, 66 bytes)
-    pub pubnonce: String,
-
-    /// Parity bit for the challenge (0 or 1)
-    pub challenge_parity: u8,
-
-    /// Parity bit for the signing nonce (0 or 1)
-    pub nonce_parity: u8,
-
-    /// Blinded nonce coefficient b' = b + gamma (hex-encoded scalar, 32 bytes)
-    pub b: String,
-
-    /// Blinded challenge e' (hex-encoded scalar, 32 bytes)
-    pub e: String,
-}
 
 /// Input for proof verification
 #[derive(Deserialize, Debug)]
@@ -286,14 +244,7 @@ fn create_proof_output(receipt: &Receipt, verified: bool, proof_type: Option<Str
         success: true,
         verified,
         proof: hex_proof,
-        journal: JournalData {
-            pubkey: journal_output.pubkey,
-            pubnonce: journal_output.pubnonce,
-            challenge_parity: journal_output.challenge_parity,
-            nonce_parity: journal_output.nonce_parity,
-            b: journal_output.b,
-            e: journal_output.e,
-        },
+        journal: journal_output,
         proof_type,
     }
 }

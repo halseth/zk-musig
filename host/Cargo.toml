@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 methods = { path = "../methods" }
+zk-musig-shared = { path = "../shared" }
 risc0-zkvm = { version = "=3.0.3" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.5.32", features = ["derive"] }
